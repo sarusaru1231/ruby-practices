@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-def fizzBuzz
+def fizz_buzz
   1.upto(20){|i|
     if i % 3 == 0 && i % 5 == 0 then
       puts "FizzBuzz"
@@ -14,4 +14,4 @@ def fizzBuzz
   }
 end
 
-fizzBuzz
+fizz_buzz
