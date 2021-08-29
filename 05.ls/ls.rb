@@ -55,8 +55,8 @@ def output_standard(filename_list)
   filename_length = filename_list.max { |x, y| x.encode('EUC-JP').bytesize <=> y.encode('EUC-JP').bytesize }.encode('EUC-JP').bytesize
   column_width =  (filename_length + tab_width) & ~(tab_width - 1)
   column_number = terminal_width / column_width
-  row_number = filename_list.length.divmod(column_number).sum
-  if terminal_width < 2 * column_width
+  row_number = filename_list.length.divmod(column_number)[0] + 1
+  if terminal_width < column_width * 2
     print_one_column_filename(filename_list)
   else
     print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
