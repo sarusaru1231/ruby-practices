@@ -6,13 +6,13 @@ require 'etc'
 require 'readline'
 
 class FileInformation
-  attr_accessor :directory_path, :file_name, :file_type, :file_permission, :file_hardlink_number, :file_owner,
+  attr_accessor :directory_path, :filename, :file_type, :file_permission, :file_hardlink_number, :file_owner,
                 :file_group, :file_size, :file_timestamp, :file_blocks
 
-  def initialize(directory_path, file_name)
+  def initialize(directory_path, filename)
     @directory_path = directory_path
-    @file_name = file_name
-    file_status = File.lstat("#{directory_path}#{file_name}")
+    @filename = filename
+    file_status = File.lstat("#{directory_path}#{filename}")
     @file_permission = load_file_permission(format('0%o', file_status.mode))
     @file_type = load_file_type(format('0%o', file_status.mode))
     @file_hardlink_number = file_status.nlink
@@ -26,17 +26,21 @@ end
 
 def main
   options, path = input_option
+  directory_path, filename_list = split_directory_file_path(path)
+  filename_list = output_exclude_starting_dot_file(filename_list) if options['a'] == false && File.directory?(path)
+  filename_list = output_reverse(filename_list) if options['r'] == true
+  options['l'] == true ? output_long(filename_list, directory_path) : output_standard(filename_list)
+end
+
+def split_directory_file_path(path)
   if File.directory?(path)
     directory_path = path.match?(%r{.*/$}) ? path : "#{path}/"
-    file_name_list = Dir.entries(directory_path).sort
+    filename_list = Dir.entries(directory_path).sort
   else
-    path = path.match(%r{(.*/)(.*)})
-    directory_path = path[1]
-    file_name_list = [path[2]]
+    directory_path = nil
+    filename_list = [path]
   end
-  file_name_list = output_exclude_starting_dot_file(file_name_list) if options['a'] == false
-  file_name_list = output_reverse(file_name_list) if options['r'] == true
-  options['l'] == true ? output_long(file_name_list, directory_path) : output_standard(file_name_list)
+  [directory_path, filename_list]
 end
 
 def input_option
@@ -45,35 +49,35 @@ def input_option
   [options, path]
 end
 
-def output_standard(file_name_list)
+def output_standard(filename_list)
   tab_width = 8
   terminal_width = `tput cols`.to_i
-  file_name_length = file_name_list.max { |x, y| x.encode('EUC-JP').bytesize <=> y.encode('EUC-JP').bytesize }.encode('EUC-JP').bytesize
-  column_width =  (file_name_length + tab_width) & ~(tab_width - 1)
+  filename_length = filename_list.max { |x, y| x.encode('EUC-JP').bytesize <=> y.encode('EUC-JP').bytesize }.encode('EUC-JP').bytesize
+  column_width =  (filename_length + tab_width) & ~(tab_width - 1)
   column_number = terminal_width / column_width
-  row_number = file_name_list.length.divmod(column_number).sum
+  row_number = filename_list.length.divmod(column_number).sum
   if terminal_width < 2 * column_width
-    print_one_column_file_name(file_name_list)
+    print_one_column_filename(filename_list)
   else
-    print_multi_columns_file_name(file_name_list, row_number, column_number, column_width, tab_width)
+    print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
   end
 end
 
-def output_reverse(file_name_list)
-  file_name_list.reverse
+def output_reverse(filename_list)
+  filename_list.reverse
 end
 
-def output_exclude_starting_dot_file(file_name_list)
-  file_name_list.reject { |s| s =~ /^\..*/ }
+def output_exclude_starting_dot_file(filename_list)
+  filename_list.reject { |s| s =~ /^\..*/ }
 end
 
-def output_long(file_name_list, directory_path)
+def output_long(filename_list, directory_path)
   file_information_list = []
-  file_name_list.map do |file|
-    file_information = FileInformation.new(directory_path, File.directory?("#{directory_path}#{file}") ? "#{file}/" : file)
+  filename_list.map do |file|
+    file_information = FileInformation.new(directory_path, file)
     file_information_list << file_information
   end
-  print_long_one_column_file_name(file_information_list)
+  print_long_one_column_filename(file_information_list)
 end
 
 def load_file_permission(file_status_mode)
@@ -121,24 +125,24 @@ def max_item_width(file_information_list)
   [max_file_hardlink_number_width, max_file_owner_width, max_file_group_width, max_file_size_width]
 end
 
-def print_file_name(file_name)
-  print file_name
-  file_name.encode('EUC-JP').bytesize
+def print_filename(filename)
+  print filename
+  filename.encode('EUC-JP').bytesize
 end
 
-def print_one_column_file_name(file_name_list)
-  file_name_list.map { |file| puts file }
+def print_one_column_filename(filename_list)
+  filename_list.map { |file| puts file }
 end
 
-def print_multi_columns_file_name(file_name_list, row_number, column_number, column_width, tab_width)
+def print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
   row = 0
   while row < row_number
     index = row
     i = 0
     while i < column_number
-      break if index >= file_name_list.length
+      break if index >= filename_list.length
 
-      char_count = print_file_name(file_name_list[index])
+      char_count = print_filename(filename_list[index])
       index += row_number
       while char_count <= column_width && i < column_number - 1
         print "\t"
@@ -151,10 +155,9 @@ def print_multi_columns_file_name(file_name_list, row_number, column_number, col
   end
 end
 
-def print_long_one_column_file_name(file_information_list)
+def print_long_one_column_filename(file_information_list)
   file_hardlink_number_width, file_owner_width, file_group_width, file_size_width = max_item_width(file_information_list)
   total_file_block = file_information_list.sum(&:file_blocks)
-
   puts "total: #{total_file_block}"
   file_information_list.map do |file_information|
     print format('%10s ', file_information.file_type + file_information.file_permission)
@@ -163,7 +166,7 @@ def print_long_one_column_file_name(file_information_list)
     print format("%#{file_group_width}s  ", file_information.file_group)
     print format("%#{file_size_width}s ", file_information.file_size)
     print file_information.file_timestamp.strftime('%_2m %_2d %H:%M ')
-    puts file_information.file_name
+    puts file_information.filename
   end
 end
 
