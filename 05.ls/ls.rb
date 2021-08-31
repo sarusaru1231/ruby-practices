@@ -27,8 +27,8 @@ end
 def main
   options, path = input_option
   directory_path, filename_list = split_directory_file_path(path)
-  filename_list = output_exclude_starting_dot_file(filename_list) if !options['a'] && File.directory?(path)
-  filename_list = output_reverse(filename_list) if options['r']
+  filename_list = filename_list.reject { |s| s =~ /^\..*/ } if !options['a'] && File.directory?(path)
+  filename_list = filename_list.reverse if options['r']
   options['l'] ? output_long(filename_list, directory_path) : output_standard(filename_list)
 end
 
@@ -52,31 +52,19 @@ end
 def output_standard(filename_list)
   tab_width = 8
   terminal_width = `tput cols`.to_i
-  filename_length = filename_list.max_by { |v| v.encode('UTF-8').bytesize }.encode('UTF-8').bytesize
+  filename_length = filename_list.map { |v| v.encode('UTF-8').bytesize }.max
   column_width =  (filename_length + tab_width) & ~(tab_width - 1)
   column_number = terminal_width / column_width
   row_number = (filename_list.length / column_number.to_f).ceil
   if terminal_width < column_width * 2
-    print_one_column_filename(filename_list)
+    filename_list.each { |filename| puts filename }
   else
     print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
   end
 end
 
-def output_reverse(filename_list)
-  filename_list.reverse
-end
-
-def output_exclude_starting_dot_file(filename_list)
-  filename_list.reject { |s| s =~ /^\..*/ }
-end
-
 def output_long(filename_list, directory_path)
-  file_information_list = []
-  filename_list.each do |file|
-    file_information = FileInformation.new(directory_path, file)
-    file_information_list << file_information
-  end
+  file_information_list = filename_list.map { |filename| FileInformation.new(directory_path, filename) }
   print_long_one_column_filename(file_information_list)
 end
 
@@ -93,9 +81,7 @@ def load_file_permission(file_status_mode)
     '7' => 'rwx'
   }
   permission_result = ''
-  permission_s.each_char do |c|
-    permission_result += translate_number_to_char_of_permissions[c]
-  end
+  permission_s.each_char { |c| permission_result += translate_number_to_char_of_permissions[c] }
   permission_result
 end
 
@@ -118,20 +104,11 @@ def max_item_width(file_information_list)
     if file_information.file_hardlink_number.to_s.length > max_file_hardlink_number_width
       max_file_hardlink_number_width = file_information.file_hardlink_number.to_s.length
     end
-    max_file_owner_width = file_information.file_owner.length if file_information.file_owner.length > max_file_owner_width
-    max_file_group_width = file_information.file_group.length if file_information.file_group.length > max_file_group_width
-    max_file_size_width = file_information.file_size.to_s.length if file_information.file_size.to_s.length > max_file_size_width
+    max_file_owner_width = [file_information.file_owner.length, max_file_owner_width].max
+    max_file_group_width = [file_information.file_group.length, max_file_group_width].max
+    max_file_size_width = [file_information.file_size.to_s.length, max_file_size_width].max
   end
   [max_file_hardlink_number_width, max_file_owner_width, max_file_group_width, max_file_size_width]
-end
-
-def print_filename(filename)
-  print filename
-  filename.encode('UTF-8').bytesize
-end
-
-def print_one_column_filename(filename_list)
-  filename_list.map { |file| puts file }
 end
 
 def print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
@@ -140,7 +117,8 @@ def print_multi_columns_filename(filename_list, row_number, column_number, colum
     (0...column_number).each do |i|
       break if index >= filename_list.length
 
-      char_count = print_filename(filename_list[index])
+      print filename_list[index]
+      char_count = filename_list[index].encode('UTF-8').bytesize
       index += row_number
       while char_count <= column_width && i < column_number - 1
         print "\t"
