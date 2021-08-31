@@ -31,7 +31,7 @@ def print_line_count_from_files(paths)
     puts format('%<line_count>8d %<path>s', line_count: line_count, path: path)
     total_line_count += line_count
   end
-  puts format('%8d total', total_line_count)
+  puts format('%8d total', total_line_count) if paths.length > 1
 end
 
 def print_counts_from_files(paths)
@@ -45,8 +45,10 @@ def print_counts_from_files(paths)
     total_word_count += word_count
     total_byte_count += byte_count
   end
-  puts format("%<total_line_count>8d%<total_word_count>8d%<total_byte_count>8d total\n", total_line_count: total_line_count,
-                                                                                         total_word_count: total_word_count, total_byte_count: total_byte_count)
+  return unless paths.length > 1
+
+  puts format("%<line_count>8d%<word_count>8d%<byte_count>8d total\n", line_count: total_line_count,
+                                                                       word_count: total_word_count, byte_count: total_byte_count)
 end
 
 def count_line_word_byte(lines)
