@@ -6,8 +6,8 @@ require 'etc'
 require 'readline'
 
 class FileInformation
-  attr_accessor :directory_path, :filename, :file_type, :file_permission, :file_hardlink_number, :file_owner,
-                :file_group, :file_size, :file_timestamp, :file_blocks
+  attr_reader :directory_path, :filename, :file_type, :file_permission, :file_hardlink_number, :file_owner,
+              :file_group, :file_size, :file_timestamp, :file_blocks
 
   def initialize(directory_path, filename)
     @directory_path = directory_path
@@ -27,14 +27,14 @@ end
 def main
   options, path = input_option
   directory_path, filename_list = split_directory_file_path(path)
-  filename_list = output_exclude_starting_dot_file(filename_list) if options['a'] == false && File.directory?(path)
-  filename_list = output_reverse(filename_list) if options['r'] == true
-  options['l'] == true ? output_long(filename_list, directory_path) : output_standard(filename_list)
+  filename_list = output_exclude_starting_dot_file(filename_list) if !options['a'] && File.directory?(path)
+  filename_list = output_reverse(filename_list) if options['r']
+  options['l'] ? output_long(filename_list, directory_path) : output_standard(filename_list)
 end
 
 def split_directory_file_path(path)
   if File.directory?(path)
-    directory_path = path.match?(%r{.*/$}) ? path : "#{path}/"
+    directory_path = File.join(path, '/')
     filename_list = Dir.entries(directory_path).sort
   else
     directory_path = nil
@@ -52,10 +52,10 @@ end
 def output_standard(filename_list)
   tab_width = 8
   terminal_width = `tput cols`.to_i
-  filename_length = filename_list.max { |x, y| x.encode('EUC-JP').bytesize <=> y.encode('EUC-JP').bytesize }.encode('EUC-JP').bytesize
+  filename_length = filename_list.max_by { |v| v.encode('UTF-8').bytesize }.encode('UTF-8').bytesize
   column_width =  (filename_length + tab_width) & ~(tab_width - 1)
   column_number = terminal_width / column_width
-  row_number = filename_list.length.divmod(column_number)[0] + 1
+  row_number = (filename_list.length / column_number.to_f).ceil
   if terminal_width < column_width * 2
     print_one_column_filename(filename_list)
   else
@@ -73,7 +73,7 @@ end
 
 def output_long(filename_list, directory_path)
   file_information_list = []
-  filename_list.map do |file|
+  filename_list.each do |file|
     file_information = FileInformation.new(directory_path, file)
     file_information_list << file_information
   end
@@ -102,11 +102,11 @@ end
 def load_file_type(file_status_mode)
   type_s = file_status_mode[1..2]
   translate_number_to_char_of_types = {
-    '10' => '-',
     '12' => 'l',
     '40' => 'd'
   }
-  translate_number_to_char_of_types.key?(type_s) ? translate_number_to_char_of_types[type_s] : '-'
+  translate_number_to_char_of_types.default = '-'
+  translate_number_to_char_of_types[type_s]
 end
 
 def max_item_width(file_information_list)
@@ -127,7 +127,7 @@ end
 
 def print_filename(filename)
   print filename
-  filename.encode('EUC-JP').bytesize
+  filename.encode('UTF-8').bytesize
 end
 
 def print_one_column_filename(filename_list)
@@ -135,11 +135,9 @@ def print_one_column_filename(filename_list)
 end
 
 def print_multi_columns_filename(filename_list, row_number, column_number, column_width, tab_width)
-  row = 0
-  while row < row_number
+  (0...row_number).each do |row|
     index = row
-    i = 0
-    while i < column_number
+    (0...column_number).each do |i|
       break if index >= filename_list.length
 
       char_count = print_filename(filename_list[index])
@@ -148,17 +146,15 @@ def print_multi_columns_filename(filename_list, row_number, column_number, colum
         print "\t"
         char_count += tab_width
       end
-      i += 1
     end
     puts
-    row += 1
   end
 end
 
 def print_long_one_column_filename(file_information_list)
   file_hardlink_number_width, file_owner_width, file_group_width, file_size_width = max_item_width(file_information_list)
   total_file_block = file_information_list.sum(&:file_blocks)
-  puts "total: #{total_file_block}"
+  puts "total #{total_file_block}"
   file_information_list.map do |file_information|
     print format('%10s ', file_information.file_type + file_information.file_permission)
     print format("%#{file_hardlink_number_width}d ", file_information.file_hardlink_number)
