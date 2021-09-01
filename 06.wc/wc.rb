@@ -2,8 +2,6 @@
 # frozen_string_literal: true
 
 require 'optparse'
-require 'etc'
-require 'readline'
 
 def main
   option = ARGV.getopts('l')
@@ -38,7 +36,6 @@ def print_counts_from_files(paths)
   total_line_count = total_word_count = total_byte_count = 0
   paths.each do |path|
     f = File.open(path, 'r')
-
     line_count, word_count, byte_count = count_line_word_byte(f.readlines)
     puts format('%<line_count>8d%<word_count>8d%<byte_count>8d %<path>s', line_count: line_count, word_count: word_count, byte_count: byte_count, path: path)
     total_line_count += line_count
